@@ -1,23 +1,24 @@
 import numpy as np
 import torch
-import torchvision
-from torchvision import datasets, models
+import os
+from torchvision import datasets
 from torch import nn
 import torchvision.transforms as transforms
-import torch.nn.functional as F
 import torch.optim as optim
-import argparse
-from time import time
 from torch.utils.data.sampler import SubsetRandomSampler
-from dataloader import Split_Dataset
 import pickle
-import itertools
-from sklearn.cluster import MiniBatchKMeans
 from models import LeNet5, Net
 import matplotlib.pyplot as plt
 
 class MNIST():
 	def __init__(self, name):
+
+		# Initialize necessary folders if do not exist:
+		if not os.path.exists('./plots'):
+			os.makedirs('./plots')
+		if not os.path.exists('./results'):
+			os.makedirs('./results')
+
 
 		self.name = name
 		n_epochs = 3
