@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 import torch.optim as optim
 from torch.utils.data.sampler import SubsetRandomSampler
 import pickle
-from models import LeNet5, Net
+from models import Net
 import matplotlib.pyplot as plt
 
 class MNIST():
@@ -19,8 +19,7 @@ class MNIST():
 		if not os.path.exists('./results'):
 			os.makedirs('./results')
 
-
-		self.name = name
+		self.name = name		# name that will be used to save files
 		n_epochs = 3
 		batch_size_train = 256
 		batch_size_test = 1000
@@ -30,28 +29,29 @@ class MNIST():
 		self.num_classes = 10
 		self.count = 0
 
-		device_id = 0		# which gpu to use
-		self.device = self.device = torch.device("cuda:"+str(device_id))
+		device_id = None  # which gpu to use (None for CPU; 0,1,2 for GPU)
+		if device_id is not None:
+			self.device = torch.device("cuda:" + str(device_id))
+		else:
+			self.device = torch.device("cpu")
 
 		transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
 		self.train_loader = torch.utils.data.DataLoader(datasets.MNIST('./MNIST/', train=True, download=True, transform=transform), batch_size=batch_size_train, shuffle=True)
 		self.test_loader = torch.utils.data.DataLoader(datasets.MNIST('./MNIST/', train=False, download=True, transform=transform), batch_size=batch_size_test, shuffle=True)
 
 		self.network = Net()
-		self.network.cuda()
+		self.network.to(self.device)
 		self.optimizer = optim.SGD(self.network.parameters(), lr=self.learning_rate, momentum=self.momentum)
 		self.criterion = nn.CrossEntropyLoss()
+
 		self.train_losses = []
-		self.train_counter = []
 		self.test_losses = []
-		self.test_counter = [i * len(self.train_loader.dataset) for i in range(n_epochs + 1)]
 
 		for epoch in range(n_epochs):
 			self.train(epoch)
 
 	def train(self, epoch):
 
-		self.network.train()
 		for batch_idx, (data, target) in enumerate(self.train_loader):
 			self.network.train()
 			data, target = data.to(self.device), target.to(self.device)
@@ -67,9 +67,6 @@ class MNIST():
 
 				print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(epoch, batch_idx * len(data), len(self.train_loader.dataset), 100. * batch_idx / len(self.train_loader), loss.item()))
 				self.train_losses.append(loss.item())
-				self.train_counter.append((batch_idx * 64) + ((epoch - 1) * len(self.train_loader.dataset)))
-				#torch.save(self.network.state_dict(), './results/model.pth')
-				#torch.save(self.optimizer.state_dict(), './results/optimizer.pth')
 				self.test()
 
 	def test(self):
