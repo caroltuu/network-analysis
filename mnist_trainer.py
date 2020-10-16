@@ -118,8 +118,8 @@ class MNIST():
                     count[lbl] += 1
                 correct += pred.eq(target.data.view_as(pred)).sum()
 
-        # save the inputs, labels and outputs
-        pickle.dump([inputs, labels, outputs], open('./results/' + self.name + '_test_' + str(self.count).zfill(6) + '.p', 'wb'))
+        # save the inputs, labels and outputs and accuracies
+        pickle.dump([inputs, labels, outputs, accuracies/count], open('./results/' + self.name + '_test_' + str(self.count).zfill(6) + '.p', 'wb'))
         # plot the accuracies
         self.plot_accuracies(accuracies/count)
 
@@ -136,4 +136,4 @@ class MNIST():
             plt.text(i - 0.1, 1.05, str(round(v, 2)), color='blue', fontweight='bold')
         plt.savefig("./plots/" + self.name + "_accuracy_" + str(self.count).zfill(6) + ".jpg")
         plt.close()
-        pickle.dump(accuracies, open('./results/' + self.name + '_test_' + str(self.count).zfill(6) + '.p', 'wb'))
+        #pickle.dump(accuracies, open('./results/' + self.name + '_test_' + str(self.count).zfill(6) + '.p', 'wb'))

@@ -11,7 +11,7 @@ class Visualizer():
 
         self.get_all_models()
 
-        self.access_all_models_layer(layer_name="conv1")
+        self.access_all_models_layer(layer_name="fc2")
 
     def get_all_models(self):
         all_results_list = glob("./results/*")
@@ -50,7 +50,10 @@ class Visualizer():
                     return weight, bias
         return weight, bias
 
-
     def visualize_weights(self, weights):
         pass
+
+    def visualize_biases(self, biases):
+        pass
+
 

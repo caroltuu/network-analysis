@@ -4,8 +4,6 @@ from visualizations import Visualizer
 import argparse
 
 
-
-
 if __name__ == "__main__":
 
 	# read the arguments
