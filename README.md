@@ -2,8 +2,10 @@
 
 ## Instructions
 ```
-python3 main.py --clear --train --visualize
+python3 main.py --name trial --clear --train --visualize
 ```
+--name flag used when saving models
+
 --clear flag removes past results
 
 --train flag traines the model
