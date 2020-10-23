@@ -4,7 +4,7 @@
 ```
 python3 main.py --name trial --clear --train --visualize
 ```
---name flag used when saving models
+--filename flag used when saving models
 
 --clear flag removes past results
 

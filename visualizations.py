@@ -1,17 +1,21 @@
 import torch
+from os import path
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 from glob import glob
 import numpy as np
 
 
 class Visualizer():
-    def __init__(self, name):
+    def __init__(self, name, visualize=False):
         self.name = name
 
         self.get_all_models()
 
-        self.access_all_models_layer(layer_name="fc2")
+        if visualize:
+            self.access_all_models_layer(layer_name="conv1", visualize=visualize)
+            self.access_all_models_layer(layer_name="fc1",  visualize=visualize)
 
     def get_all_models(self):
         all_results_list = glob("./results/*")
@@ -22,18 +26,27 @@ class Visualizer():
         n_models = len(models_list)
         self.ordered_model_list = []
         for i in range(1, n_models+1):
-            self.ordered_model_list.append('./results/' + self.name + '_model_' + str(i).zfill(6) + '.pth')
+            model_path = './results/' + self.name + '_model_' + str(i).zfill(6) + '.pth'
+            if path.exists(model_path):
+                self.ordered_model_list.append('./results/' + self.name + '_model_' + str(i).zfill(6) + '.pth')
+            else:
+                break
 
-    def access_all_models_layer(self, layer_name):
+    def access_all_models_layer(self, layer_name, visualize=False):
         weights, biases = [], []
         for model in self.ordered_model_list:
             w, b = self.access_model_layer(model, layer_name=layer_name)
             weights.append(w)
             biases.append(b)
         weights, biases = np.asarray(weights), np.asarray(biases)
-        print(np.shape(weights), np.shape(biases))
 
-        # visualize the weights:
+        if visualize:
+
+            # visualize the weights:
+            self.visualize_weights_separately(weights)
+            self.visualize_weights_all(weights)
+            self.visualize_biases(biases)
+        return weights, biases
 
     def access_model_layer(self, model_path, layer_name):
         weight, bias = None, None
@@ -50,10 +63,91 @@ class Visualizer():
                     return weight, bias
         return weight, bias
 
-    def visualize_weights(self, weights):
-        pass
+    def visualize_weights_separately(self, weights):
+
+        # to visualize the CONV layers:
+        if len(np.shape(weights)) > 3:
+            weights = weights.reshape((np.shape(weights)[0], np.shape(weights)[1], -1))
+        new_weights = []
+        for i in range(np.shape(weights)[1]):
+            new_weights.extend(weights[:, i, :])
+        new_weights = np.asarray(new_weights)
+        tsne_weights = TSNE(n_components=2).fit_transform(new_weights)
+        for i in range(np.shape(weights)[1]):
+            n = len(weights)
+            x = tsne_weights[n*i:n*(i+1), 0]
+            y = tsne_weights[n*i:n*(i+1), 1]
+            plt.scatter(x, y)
+            plt.plot(x, y)
+        plt.show()
+
+    def visualize_weights_all(self, weights):
+        # to visualize the CONV layers:
+        if len(np.shape(weights)) > 3:
+            weights = weights.reshape((np.shape(weights)[0], np.shape(weights)[1], -1))
+
+        reshaped_weights = weights.reshape((np.shape(weights)[0], -1))
+        tsne_biases = TSNE(n_components=2).fit_transform(reshaped_weights)
+        plt.scatter(tsne_biases[:, 0], tsne_biases[:, 1])
+        plt.plot(tsne_biases[:, 0], tsne_biases[:, 1])
+        plt.show()
 
     def visualize_biases(self, biases):
-        pass
+        tsne_biases = TSNE(n_components=2).fit_transform(biases)
+        plt.scatter(tsne_biases[:, 0], tsne_biases[:, 1])
+        plt.plot(tsne_biases[:, 0], tsne_biases[:, 1])
+        plt.show()
 
 
+class ModelComparator():
+    def __init__(self, names):
+        self.n_models = len(names)
+        self.names = names
+        self.visualizers = [Visualizer(name=name, visualize=False) for name in self.names]
+
+        weights, biases = self.get_layer(layer_name="conv2")
+        self.visualize(weights, biases)
+
+    def get_layer(self, layer_name):
+        weights, biases = [], []
+        for i in range(self.n_models):
+            w, b = self.visualizers[i].access_all_models_layer(layer_name=layer_name, visualize=False)
+            weights.append(w)
+            biases.append(b)
+        return np.asarray(weights), np.asarray(biases)
+
+    def visualize(self, weights, biases):
+        print(np.shape(weights), np.shape(biases))
+        tsne_weights = self.flatten_and_tsne(weights)
+        print(np.shape(tsne_weights))
+
+        dims = np.shape(weights)
+        colors = ['c','b','r','g','k']
+
+        for j in range(dims[0]):
+            for i in range(dims[2]):
+                model_len = dims[1]*dims[2]
+                train_len = dims[1]
+                start_idx = model_len*j+train_len*i
+                end_idx = model_len*j+train_len*(i+1)
+                x = tsne_weights[start_idx:end_idx, 0]
+                y = tsne_weights[start_idx:end_idx, 1]
+                plt.scatter(x, y, c=colors[j])
+                plt.plot(x, y, c=colors[j])
+        plt.show()
+
+    def flatten_and_tsne(self, data):
+        n_models = len(data)
+        assert n_models == len(self.names)
+        dims = np.shape(data)
+        # to visualize the CONV layers:
+        if len(dims) > 4:
+            data = data.reshape((dims[0], dims[1], dims[2], -1))
+        new_data = []
+        for j in range(np.shape(data)[0]):
+            for i in range(np.shape(data)[2]):
+                new_data.extend(data[j, :, i, :])
+        new_data = np.asarray(new_data)
+        tsne_data = PCA(n_components=2).fit_transform(new_data)
+        #tsne_data= TSNE(n_components=2).fit_transform(new_data)
+        return tsne_data

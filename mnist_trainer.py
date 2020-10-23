@@ -16,12 +16,12 @@ class MNIST():
 
         # set the parameters:
         self.name = name		# name that will be used to save files
-        self.n_epochs = 3
+        self.n_epochs = 1
         self.batch_size_train = 256
         self.batch_size_test = 1000
         self.learning_rate = 0.01
         self.momentum = 0.5
-        self.log_interval = 25
+        self.log_interval = 2
         self.num_classes = 10
         self.count = 0
 
