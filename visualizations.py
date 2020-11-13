@@ -46,6 +46,7 @@ class Visualizer():
             self.visualize_weights_separately(weights)
             self.visualize_weights_all(weights)
             self.visualize_biases(biases)
+
         return weights, biases
 
     def access_model_layer(self, model_path, layer_name):
@@ -54,6 +55,7 @@ class Visualizer():
         for name, param in model.state_dict().items():
             if layer_name in name:
                 if "weight" in name:
+                    #print(param.size())
                     weight = param.numpy()
                 if "bias" in name:
                     bias = param.numpy()
@@ -61,6 +63,7 @@ class Visualizer():
                 #early stopping:
                 if bias is not None and weight is not None:
                     return weight, bias
+
         return weight, bias
 
     def visualize_weights_separately(self, weights):
@@ -98,15 +101,24 @@ class Visualizer():
         plt.plot(tsne_biases[:, 0], tsne_biases[:, 1])
         plt.show()
 
-
 class ModelComparator():
-    def __init__(self, names):
-        self.n_models = len(names)
-        self.names = names
+    def __init__(self, name, n_models):
+        self.n_models = n_models
+        self.names = [name+"_"+str(i) for i in range(n_models)]
         self.visualizers = [Visualizer(name=name, visualize=False) for name in self.names]
 
-        weights, biases = self.get_layer(layer_name="conv2")
-        self.visualize(weights, biases)
+        weights1, biases1 = self.get_layer(layer_name="conv1")
+        print("Weights:", np.shape(weights1))
+        self.visualize(weights1, biases1)
+        order = self.get_layer_order(weights1)
+
+        weights2, biases2 = self.get_layer(layer_name="conv2")
+        print("Weights:", np.shape(weights2))
+        weights2 = self.reorder_weights(weights2, order)
+        self.visualize(weights2, biases2)
+
+        weights, biases = self.get_layer(layer_name="fc1")
+        print("Weights:", np.shape(weights))
 
     def get_layer(self, layer_name):
         weights, biases = [], []
@@ -116,13 +128,58 @@ class ModelComparator():
             biases.append(b)
         return np.asarray(weights), np.asarray(biases)
 
+    def get_layer_order(self, weights):
+        orig = weights[0, -1, ...]
+        n_filters = len(orig)
+        orders = -1*np.ones((len(weights)-1, n_filters))
+        print(np.shape(orders))
+        for i in range(1, len(weights)):
+
+            last = weights[i, -1, ...]
+            distances = np.zeros((n_filters, n_filters))
+            for j in range(n_filters):
+                for k in range(n_filters):
+                    distances[j, k] = np.linalg.norm(orig[j] - last[k])
+            maxVal = 2*np.max(distances)
+
+            for j in range(n_filters):
+                minVal = np.min(distances)
+                idx = np.where(distances == minVal)
+
+                a = idx[0][0]
+                b = idx[1][0]
+
+                distances[a, ...] = maxVal
+                distances[..., b] = maxVal
+                orders[i-1, b] = a
+
+        return orders.astype(int)
+
+    def reorder_weights(self, weights, order):
+        print("Reordering:", np.shape(weights), np.shape(order))
+        new_weights = np.zeros_like(weights)
+
+        # assign first weights as the ground truth order:
+        new_weights[0, ...] = weights[0, ...]
+
+        # go through remaining models and reorder them:
+        for i in range(1, len(weights)):
+            for j in range(len(order[0])):
+                new_weights[i, :, :, order[i-1, j], ...] = weights[i, :, :, j, ...]
+
+        print("Ordered:", np.shape(new_weights))
+        return new_weights
+
     def visualize(self, weights, biases):
         print(np.shape(weights), np.shape(biases))
+
+        dims = np.shape(weights)
         tsne_weights = self.flatten_and_tsne(weights)
         print(np.shape(tsne_weights))
 
-        dims = np.shape(weights)
-        colors = ['c','b','r','g','k']
+        cmap = plt.get_cmap('nipy_spectral')#'viridis')
+        colors = cmap(np.linspace(0, 1, self.n_models))
+        #colors = ['b','g','r','c','m', 'y', 'k']
 
         for j in range(dims[0]):
             for i in range(dims[2]):
@@ -134,6 +191,7 @@ class ModelComparator():
                 y = tsne_weights[start_idx:end_idx, 1]
                 plt.scatter(x, y, c=colors[j])
                 plt.plot(x, y, c=colors[j])
+                plt.annotate(str(i), (x[-1], y[-1]))
         plt.show()
 
     def flatten_and_tsne(self, data):
@@ -148,6 +206,7 @@ class ModelComparator():
             for i in range(np.shape(data)[2]):
                 new_data.extend(data[j, :, i, :])
         new_data = np.asarray(new_data)
+        print(np.shape(new_data))
         tsne_data = PCA(n_components=2).fit_transform(new_data)
-        #tsne_data= TSNE(n_components=2).fit_transform(new_data)
+        #tsne_data = TSNE(n_components=2).fit_transform(new_data)
         return tsne_data

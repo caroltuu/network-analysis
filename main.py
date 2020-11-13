@@ -12,13 +12,16 @@ if __name__ == "__main__":
 	parser.add_argument('--train', default=False, action='store_true')
 	parser.add_argument('--visualize', default=False, action='store_true')
 	parser.add_argument('--filename', default='trial', type=str)
+	parser.add_argument('--n_models', default=5, type=int)
+	parser.add_argument('--gpu', default=-1, type=int)
 	args = parser.parse_args()
-
 	if args.clear:
 		clear_folders()
 	if args.train:
-		mnist = MNIST(name=args.filename)
+
+		mnist = MNIST(name=args.filename, n_models=args.n_models, gpu=args.gpu)
 		mnist.train()
 	if args.visualize:
-		vis = ModelComparator(names=["trial", "trial1", "trial2", "trial3", "trial4"])
+		vis = ModelComparator(name = args.filename, n_models=args.n_models)
+		#vis = ModelComparator(names=["trial", "trial1", "trial2", "trial3", "trial4", "trial5", "trial6"])
 		#vis = Visualizer(name=args.filename, visualize=True)
