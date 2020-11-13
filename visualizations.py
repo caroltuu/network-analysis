@@ -117,8 +117,8 @@ class ModelComparator():
         weights2 = self.reorder_weights(weights2, order)
         self.visualize(weights2, biases2)
 
-        weights, biases = self.get_layer(layer_name="fc1")
-        print("Weights:", np.shape(weights))
+        #weights, biases = self.get_layer(layer_name="fc1")
+        #print("Weights:", np.shape(weights))
 
     def get_layer(self, layer_name):
         weights, biases = [], []
@@ -189,8 +189,8 @@ class ModelComparator():
                 end_idx = model_len*j+train_len*(i+1)
                 x = tsne_weights[start_idx:end_idx, 0]
                 y = tsne_weights[start_idx:end_idx, 1]
-                plt.scatter(x, y, c=colors[j])
-                plt.plot(x, y, c=colors[j])
+                plt.scatter(x, y, color=colors[j])
+                plt.plot(x, y, color=colors[j])
                 plt.annotate(str(i), (x[-1], y[-1]))
         plt.show()
 

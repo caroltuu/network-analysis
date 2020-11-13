@@ -56,9 +56,21 @@ class MNIST():
         self.optimizers = []
         for i in range(self.n_models):
             model = Net()
+            model.apply(self.init_weights)
             self.networks.append(model)
             self.optimizers.append(optim.SGD(model.parameters(), lr=self.learning_rate, momentum=self.momentum))
         self.criterion = nn.CrossEntropyLoss()
+
+    def init_weights(self, m):
+        if type(m) == nn.Conv2d:
+            #torch.nn.init.xavier_uniform(m.weight)
+            #torch.nn.init.xavier_normal(m.weight)
+
+            #torch.nn.init.kaiming_uniform(m.weight)
+            #torch.nn.init.kaiming_normal(m.weight)
+            pass
+
+
 
     def train(self):
         for epoch in range(self.n_epochs):
