@@ -123,6 +123,14 @@ class ModelComparator():
     self.names = [name+"_"+str(i) for i in range(n_models)]
     self.visualizers = [Visualizer(name=name, visualize=True) for name in self.names]
 
+    print('about to get layer')
+    weights1, biases1 = self.get_layer(layer_name="conv1")
+    print('got dat fucking layer')
+    self.visualize(weights1, biases1)
+    
+    #self.plot_norm(normgraphtype)
+
+  def plot_norm(self, normgraphtype):
     data = []
     for visualizer in self.visualizers:
       weights, biases = visualizer.access_all_models_layer('conv1')
@@ -141,25 +149,12 @@ class ModelComparator():
 
       plt.hist(data, label="DATA")
 
-      mn, mx = plt.xlim()
-      kde_xs = np.linspace(mn, mx, 300)
-      kde = st.gaussian_kde(data)
-      # plt.plot(kde_xs, kde.pdf(kde_xs), label="PDF")
-
       plt.xlabel('Magnitudes')
       plt.ylabel('Number of kernels')
       plt.legend(loc="upper left")
     
     plt.title('Magnitudes')
     plt.show()
-
-    '''weights1, biases1 = self.get_layer(layer_name="conv1")
-    order = self.get_layer_order(weights1)
-
-    weights2, biases2 = self.get_layer(layer_name="conv2")
-    weights2 = self.reorder_weights(weights2, order)
-
-    weights, biases = self.get_layer(layer_name="fc1")'''
 
   def get_layer(self, layer_name):
     weights, biases = [], []

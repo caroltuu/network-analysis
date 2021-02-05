@@ -23,3 +23,5 @@ if __name__ == "__main__":
 		mnist.train()
 	if args.visualize:
 		vis = ModelComparator(name = args.filename, n_models=args.n_models, normgraphtype=args.normgraphtype)
+
+  
