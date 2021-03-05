@@ -11,5 +11,5 @@ def initialize_folders():
 
 def clear_folders():
     # remove files from previous runs:
-    os.system("rm -r ./results/*")
-    os.system("rm -r ./plots/*")
+    os.system("del /S .\\results\*")
+    os.system("del /S .\plots\*")

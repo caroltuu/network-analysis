@@ -1,13 +1,15 @@
 import torch
 from os import path
 import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 from glob import glob
-import numpy as np
 from numpy.linalg import norm
 import scipy.stats as st
 from torchvision import utils
+from numpy.linalg import eigh, solve
+from numpy.random import randn
 
 class Visualizer():
   def __init__(self, name, visualize=False):
@@ -21,18 +23,22 @@ class Visualizer():
 
   def get_all_models(self):
     all_results_list = glob("./results/*")
-    models_list = []
+    self.ordered_model_list = []
     for file in all_results_list:
       if self.name in file and "model" in file and ".pth" in file:
-        models_list.append(file)
-    n_models = len(models_list)
-    self.ordered_model_list = []
+        self.ordered_model_list.append(file)
+    n_models = len(self.ordered_model_list)
+    print(self.ordered_model_list)
+    '''
     for i in range(1, n_models+1):
       model_path = './results/' + self.name + '_model_' + str(i).zfill(6) + '.pth'
       if path.exists(model_path):
+        print(model_path, 'exists')
         self.ordered_model_list.append('./results/' + self.name + '_model_' + str(i).zfill(6) + '.pth')
       else:
+        print(model_path, 'does not exist')
         break
+    '''
 
   def access_all_models_layer(self, layer_name, visualize=False):
     weights, biases = [], []
@@ -98,44 +104,84 @@ class Visualizer():
     plt.show()
 
   def visualize_biases(self, biases):
+    print(biases.shape)
     tsne_biases = TSNE(n_components=2).fit_transform(biases)
     plt.scatter(tsne_biases[:, 0], tsne_biases[:, 1])
     plt.plot(tsne_biases[:, 0], tsne_biases[:, 1])
     plt.show()
 
-  def euclideanNorm(self, weights, filter_size=3):
-    dimensions = weights.shape
-    # print('dim', dimensions)
-    # 118 = num iterations
-    # 10 = num kernels
-    euclidean_norms = []
-    for kernel in range(dimensions[1]):
-      sumMagnitude = 0
-      for iteration in range(dimensions[0]):
-        curr_weight = weights[iteration, kernel, 0, :]
-        sumMagnitude += norm(curr_weight.flatten())
-      euclidean_norms.append(sumMagnitude)
-    return euclidean_norms
-
 class ModelComparator():
   def __init__(self, name, n_models, normgraphtype):
     self.n_models = n_models
+    print('n_models', n_models)
     self.names = [name+"_"+str(i) for i in range(n_models)]
     self.visualizers = [Visualizer(name=name, visualize=True) for name in self.names]
 
-    print('about to get layer')
-    weights1, biases1 = self.get_layer(layer_name="conv1")
-    print('got dat fucking layer')
-    self.visualize(weights1, biases1)
-    
-    #self.plot_norm(normgraphtype)
+    w, b = self.visualizers[0].access_all_models_layer(layer_name='conv1')
+    w2, b2 = self.visualizers[0].access_all_models_layer(layer_name='conv2')
 
-  def plot_norm(self, normgraphtype):
-    data = []
-    for visualizer in self.visualizers:
-      weights, biases = visualizer.access_all_models_layer('conv1')
-      magnitudes = visualizer.euclideanNorm(weights)
-      data.extend(magnitudes)
+    print('shape of conv1', w.shape)
+    print('shape of conv2', w2.shape)
+
+    for i, layer in enumerate(['conv1', 'conv2']):
+      filters = []
+      plot = plt.figure(layer + ' ' + str(i+1))
+
+      for vis in self.visualizers:
+        weights, biases = vis.access_all_models_layer(layer_name=layer)
+        curr_filter = np.asarray(self.extractFilters(weights))
+        curr_filter /= norm(curr_filter)
+        filters.extend(curr_filter.tolist())
+      
+      print('filters', np.asarray(filters).shape)
+
+      # self.visualize(weights1, biases1)
+      # self.plot_all_weights(weights1)
+      # self.plot_norm(filters, normgraphtype, layer)
+      self.PCA_magnitudes(np.asarray(filters), layer)
+    plt.show()
+  
+  def extractFilters(self, weights):
+    dimensions = weights.shape
+    filters = []
+    for kernel in range(dimensions[1]):
+      curr_kernel = weights[0, kernel, :]
+      filters.append(curr_kernel.flatten())
+    return filters
+
+  def cov(self, X):
+    """
+    Covariance matrix
+    note: specifically for mean-centered data
+    note: numpy's `cov` uses N-1 as normalization
+    """
+    return np.dot(X.T, X) / X.shape[0]
+    # N = data.shape[1]
+    # C = empty((N, N))
+    # for j in range(N):
+    #   C[j, j] = mean(data[:, j] * data[:, j])
+    #   for k in range(j + 1, N):
+    #       C[j, k] = C[k, j] = mean(data[:, j] * data[:, k])
+    # return C
+
+  def pca(self, data, pc_count = None):
+    data -= np.mean(data, 0)
+    data /= np.std(data, 0)
+    C = self.cov(data)
+    E, V = eigh(C)
+    key = np.argsort(E)[::-1][:pc_count]
+    E, V = E[key], V[:, key]
+    U = np.dot(data, V)  # used to be dot(V.T, data.T).T
+    return U, E, V
+
+
+  def PCA_magnitudes(self, filters, name):
+    trans = PCA(n_components=2).fit_transform(filters)
+    fig = plt.plot('pca ' + name)
+    plt.scatter(trans[:, 0], trans[:, 1], c = 'r')
+
+  def plot_norm(self, filters, normgraphtype, name):
+    data = self.euclideanNorm(filters)
     data = np.asarray(data)
 
     if normgraphtype == 'bar':
@@ -143,17 +189,26 @@ class ModelComparator():
       plt.xlabel('Model')
       plt.ylabel('Magnitude')
     else:
-      q25, q75 = np.percentile(data,[.25,.75])
-      bin_width = 2*(q75 - q25)*len(data)**(-1/3)
-      bins = round((data.max() - data.min())/bin_width)
-
-      plt.hist(data, label="DATA")
+      plt.hist(data, bins=20, label="DATA")
 
       plt.xlabel('Magnitudes')
       plt.ylabel('Number of kernels')
       plt.legend(loc="upper left")
     
-    plt.title('Magnitudes')
+    plt.title('Magnitudes ' + name)
+    
+  
+  def euclideanNorm(self, filters):
+    return [norm(filt) for filt in filters]
+
+  def plot_all_weights(self, weights):
+    weights1d = weights.flatten()
+    plt.hist(weights1d, label="DATA")
+    plt.xlabel('weight value')
+    plt.ylabel('Number of weights')
+    plt.legend(loc="upper left")
+
+    plt.title('Weights')
     plt.show()
 
   def get_layer(self, layer_name):
@@ -168,7 +223,6 @@ class ModelComparator():
     orig = weights[0, -1, ...]
     n_filters = len(orig)
     orders = -1*np.ones((len(weights)-1, n_filters))
-    print(np.shape(orders))
     for i in range(1, len(weights)):
 
       last = weights[i, -1, ...]
@@ -208,8 +262,6 @@ class ModelComparator():
 
   def visualize(self, weights, biases):
     print(np.shape(weights), np.shape(biases))
-
-    print('regular norm', norm(weights))
 
     dims = np.shape(weights)
     tsne_weights = self.flatten_and_tsne(weights)

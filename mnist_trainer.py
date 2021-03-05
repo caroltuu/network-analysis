@@ -75,6 +75,8 @@ class MNIST():
     def train(self):
         for epoch in range(self.n_epochs):
             self.train_epoch(epoch)
+        for i, model in enumerate(self.networks):
+          torch.save(model, './results/'+self.name+'_'+str(i)+'_model_'+ str(self.count).zfill(6) + '.pth')
 
     def train_epoch(self, epoch):
         for batch_idx, (data, target) in enumerate(self.train_loader):
@@ -95,8 +97,6 @@ class MNIST():
 
                 # after every batch dump the current parameters, data and test:
                 if batch_idx % self.log_interval == 0:
-                    # save the model:
-                    torch.save(model, './results/'+self.name+'_'+str(ii)+'_model_'+ str(self.count).zfill(6) + '.pth')
                     # save the inputs, labels, outputs and loss
                     #pickle.dump([data.cpu().numpy(), target.cpu().numpy(), output.cpu().detach().numpy(), loss.data.cpu()], open('./results/'+self.name+'_train_' + str(self.count).zfill(6) + '.p', 'wb'))
 
