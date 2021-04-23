@@ -10,6 +10,7 @@ import pickle
 from models import Net
 import matplotlib.pyplot as plt
 from matplotlib import colors
+from matplotlib.ticker import AutoMinorLocator
 from sklearn.decomposition import PCA
  
 from utils import initialize_folders
@@ -208,29 +209,46 @@ class MNIST():
     print('actmaps', act_maps.shape)
     print('actmaplabels', labels.shape)
     
-    num_kernels = labels.shape[0]
+    num_kernels = act_maps.shape[0]
     num_images = labels.shape[1]
     num_labels = np.unique(labels).shape[0]
 
-    matrix = np.zeros((num_labels, num_labels)) # kernels * labels
+    matrix = np.zeros((num_kernels, num_labels)) # kernels * labels
+
+    column_totals = np.zeros((num_kernels))
 
     for kern in range(num_kernels):
       for img in range(num_images):
         flattened_kernel = act_maps[kern][img].flatten()
         kernel_norm = np.linalg.norm(flattened_kernel)
         matrix[kern][labels[kern][img]] += kernel_norm
+        column_totals[labels[kern][img]] += 1
+    
+    column_totals /= num_kernels
+    
+    # normalize matrix
+    for label in range(num_labels):
+      matrix[:, label] /= column_totals[label]
 
-    matrix /= np.amax(matrix)
+    for kern in range(num_kernels):
+      matrix[kern, :] -= np.amin(matrix[kern, :])
+      matrix[kern, :] /= np.amax(matrix[kern, :])
 
-    cmap = colors.ListedColormap([(i/255, 0, i/255) for i in range(255)])
+    cmap = colors.ListedColormap([(i/255, i/255, i/255) for i in range(255)])
 
     fig, ax = plt.subplots()
     ax.imshow(matrix, cmap=cmap)
 
+    plt.xlabel("Labels")
+    ax.set_xticks(np.arange(-0.5, num_labels, 1))
+    ax.set_xticklabels([])
+
+    plt.ylabel("Kernels")
+    ax.set_yticks(np.arange(-.5, num_kernels, 1))
+    ax.set_yticklabels([])
+
     # draw gridlines
     ax.grid(which='major', axis='both', linestyle='-', color='k', linewidth=2)
-    ax.set_xticks(np.arange(-.5, 10, 1))
-    ax.set_yticks(np.arange(-.5, 10, 1))
 
     plt.show()
 
