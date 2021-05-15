@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 from matplotlib.ticker import AutoMinorLocator
 from sklearn.decomposition import PCA
+from scipy.stats import pearsonr
  
 from utils import initialize_folders
  
@@ -131,7 +132,11 @@ class MNIST():
   def test(self):
     # set it to eval mode
     print('started testing on', len(self.networks), 'models')
-    for ii, model in enumerate(self.networks[0:1]):
+
+    all_act_maps = []
+    all_act_map_labels = []
+
+    for ii, model in enumerate(self.networks):
       model.to(self.device)
       model.eval()
       test_loss = 0
@@ -186,14 +191,13 @@ class MNIST():
       #  plot the accuracies
       # self.plot_accuracies(accuracies/count)
       
-      for kernel, act_map in act_maps.items():
-        print('layer', kernel)
+      # for kernel, act_map in act_maps.items():
+        # print('layer', kernel)
         # plot = plt.figure(str(kernel))
         # self.plot_act_maps(kernel, np.asarray(act_map), np.asarray(act_map_labels[kernel]))
         # plt.savefig('./plots/act_maps/PCA' + str(kernel) + '.jpg', dpi=300)
         # plt.show()
         
-      self.plot_label_to_kernel(self.dict_to_np(act_maps), self.dict_to_np(act_map_labels))
       
       #self.plot_act_maps_all('all maps', act_maps)
 
@@ -203,48 +207,81 @@ class MNIST():
       # print('outputs', np.asarray(outputs).shape)
       # print('act_map', np.asarray(act_maps[0]).shape)
 
-      print('Test set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)'.format(test_loss, correct, len(self.test_loader.dataset), 100. * correct / len(self.test_loader.dataset)))
+      all_act_maps      .append(self.dict_to_np(act_maps      ))
+      all_act_map_labels.append(self.dict_to_np(act_map_labels))
 
-  def plot_label_to_kernel(self, act_maps, labels):
+      print('Test set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)'.format(test_loss, correct, len(self.test_loader.dataset), 100. * correct / len(self.test_loader.dataset)))
+    
+    all_act_map_labels = np.asarray(all_act_map_labels)
+    all_act_maps = np.asarray(all_act_maps)
+
+    np.save('./arrays/act_maps.npy', all_act_maps)
+    np.save('./arrays/act_map_labels.npy', all_act_map_labels)
+    
+
+    #all_act_maps = np.load('./arrays/act_maps.npy')
+    #all_act_map_labels = np.load('./arrays/act_map_labels.npy')
+    
+    print('all_act_maps', np.shape(all_act_maps))
+    print('all_act_map_labels', np.shape(all_act_map_labels))
+
+    # self.get_label_to_kernel(all_act_maps, all_act_map_labels)
+
+    matrix = self.get_label_to_kernel(all_act_maps, all_act_map_labels)
+
+    self.plot_correlation(matrix)
+
+    #self.plot_label_to_kernel(all_act_maps, all_act_map_labels)
+
+
+  def get_label_to_kernel(self, act_maps, labels):
     print('actmaps', act_maps.shape)
     print('actmaplabels', labels.shape)
     
-    num_kernels = act_maps.shape[0]
-    num_images = labels.shape[1]
-    num_labels = np.unique(labels).shape[0]
+    num_models = act_maps.shape[0]
+    num_kernels = act_maps.shape[1]
+    num_labels = labels.shape[1]
+    num_images = labels.shape[2]
 
-    matrix = np.zeros((num_kernels, num_labels)) # kernels * labels
+    matrix = np.zeros((num_models, num_kernels, num_labels)) # models * kernels * labels
 
-    column_totals = np.zeros((num_kernels))
+    for mod in range(num_models):
+      column_totals = np.zeros((num_kernels))
 
-    for kern in range(num_kernels):
-      for img in range(num_images):
-        flattened_kernel = act_maps[kern][img].flatten()
-        kernel_norm = np.linalg.norm(flattened_kernel)
-        matrix[kern][labels[kern][img]] += kernel_norm
-        column_totals[labels[kern][img]] += 1
+      for kern in range(num_kernels):
+        for img in range(num_images):
+          label = labels[mod][kern][img]
+
+          flattened_kernel = act_maps[mod][kern][img].flatten()
+          kernel_norm = np.linalg.norm(flattened_kernel)
+          
+          matrix[mod][kern][label] += kernel_norm
+          column_totals[label] += 1
+
+      column_totals /= num_kernels
     
-    column_totals /= num_kernels
-    
-    # normalize matrix
-    for label in range(num_labels):
-      matrix[:, label] /= column_totals[label]
+      # normalize matrix
+      for label in range(num_labels):
+        matrix[mod, :, label] /= column_totals[label]
 
-    for kern in range(num_kernels):
-      matrix[kern, :] -= np.amin(matrix[kern, :])
-      matrix[kern, :] /= np.amax(matrix[kern, :])
+      for kern in range(num_kernels):
+        matrix[mod, kern, :] -= np.amin(matrix[mod, kern, :])
+        matrix[mod, kern, :] /= np.amax(matrix[mod, kern, :])
 
+    return matrix
+
+  def plot_label_to_kernel(self, matrix):
     cmap = colors.ListedColormap([(i/255, i/255, i/255) for i in range(255)])
 
     fig, ax = plt.subplots()
     ax.imshow(matrix, cmap=cmap)
 
     plt.xlabel("Labels")
-    ax.set_xticks(np.arange(-0.5, num_labels, 1))
+    ax.set_xticks(np.arange(-0.5, np.shape(matrix)[1], 1))
     ax.set_xticklabels([])
 
     plt.ylabel("Kernels")
-    ax.set_yticks(np.arange(-.5, num_kernels, 1))
+    ax.set_yticks(np.arange(-.5, np.shape(matrix)[0], 1))
     ax.set_yticklabels([])
 
     # draw gridlines
@@ -252,6 +289,59 @@ class MNIST():
 
     plt.show()
 
+  def plot_correlation(self, matrix):
+    num_models = np.shape(matrix)[0]
+    num_kernels = np.shape(matrix)[1]
+    num_labels = np.shape(matrix)[2]
+
+    corr_mat = np.zeros((num_labels, num_labels))
+
+    for mod in range(num_models):
+      for l1 in range(num_labels):
+        for l2 in range(num_labels):
+          l1_norms = matrix[mod, :, l1]
+          l2_norms = matrix[mod, :, l2]
+
+          corr_coef, _ = pearsonr(l1_norms, l2_norms)
+
+          if np.isnan(corr_coef):
+            corr_coef = 1
+
+          corr_mat[l1][l2] += corr_coef 
+
+    corr_mat /= num_models
+    corr_mat += 1
+    corr_mat /= 2
+
+    print(corr_mat)
+
+    c = []
+
+    for i in range(128):
+      c.append((1-i/128, 0, 0))
+    
+    for i in range(128, 256):
+      c.append((0, i/128-1, 0))
+
+    print(c)
+
+    cmap = colors.ListedColormap(c)
+
+    fig, ax = plt.subplots()
+    ax.imshow(corr_mat, cmap=cmap)
+
+    plt.xlabel("Labels")
+    ax.set_xticks(np.arange(-0.5, np.shape(corr_mat)[1], 1))
+    ax.set_xticklabels([])
+
+    plt.ylabel("Labels")
+    ax.set_yticks(np.arange(-.5, np.shape(corr_mat)[0], 1))
+    ax.set_yticklabels([])
+
+    # draw gridlines
+    ax.grid(which='major', axis='both', linestyle='-', color='k', linewidth=2)
+
+    plt.show()
 
   def plot_act_maps(self, layer, raw_act_map, labels):
     act_map = []
